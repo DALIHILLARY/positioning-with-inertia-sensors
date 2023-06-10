@@ -27,11 +27,11 @@ float LOWER_HEADING = 0.0;
 
 float LAST_GPS_DISTANACE = 0.0; // for comparison with current /positive or negative direction
 
-#define LOWEST_GPS_SAMPLING_RATE 300 // The lowest GPS is allowed to sample 5 min
-#define HIGHEST_GPS_SAMPLING_RATE 30 // The highest GPS is allowed to sample 30 seconds
+#define HIGHEST_GPS_SAMPLING_INTERVAL 300 // The lowest GPS is allowed to sample 5 min
+#define LOWEST_GPS_SAMPLING_INTERVAL 30 // The highest GPS is allowed to sample 30 seconds
 #define SAMPLING_FACTOR 2            // The multipling or decreasing factor for change in sampling
 
-int currentGPSSamplingRate = LOWEST_GPS_SAMPLING_RATE; // begin off with the lowest sampling rate
+int currentGPSSamplingInterval = LOWEST_GPS_SAMPLING_INTERVAL; // begin off with the lowest sampling rate
 unsigned long lastGPSSamplingTime = millis();                 // the last time the GPS was sampled
 
 bool isOutsidePerimeter = false;
@@ -55,38 +55,37 @@ unsigned long previousActiveTransmission = millis();
 #define FIFO_BUFFER_SIZE 42 // maximum packet size plus 2 for the header bytes
 uint8_t fifoBuffer[FIFO_BUFFER_SIZE];
 
-double roll, pitch; // Roll and pitch are calculated using the accelerometer
+float roll, pitch; // Roll and pitch are calculated using the accelerometer
 
-double gyroXangle, gyroYangle, gyroZangle;         // Angle calculate using the gyro only
-double compAngleX, compAngleY, compAngleZ;         // Calculated angle using a complementary filter
-double kalAngleX, kalAngleY, kalAngleZ, kalAngleH; // Calculated angle using a Kalman filter
+float gyroXangle, gyroYangle, gyroZangle;         // Angle calculate using the gyro only
+float compAngleX, compAngleY, compAngleZ;         // Calculated angle using a complementary filter
+float kalAngleX, kalAngleY, kalAngleZ, kalAngleH; // Calculated angle using a Kalman filter
 
 float gyroHeading, compassHeading;
 
-#define SAMPLE_RATE_HZ 100 // Define the sampling rate in Hz
+// #define SAMPLE_RATE_HZ 100 // Define the sampling rate in Hz
 
-double STEP_THRESHOLD = 1.0; // The threshold during step detection
+// double STEP_THRESHOLD = 1.0; // The threshold during step detection
 
-// Define constants for minimum and maximum time interval between maxima and minima
-#define MIN_INTERVAL 110 // Minimum interval time between maxima and minima in ms
-#define MAX_INTERVAL 400 // Maximum interval time between maxima and minima in ms
+// // Define constants for minimum and maximum time interval between maxima and minima
+// #define MIN_INTERVAL 110 // Minimum interval time between maxima and minima in ms
+// #define MAX_INTERVAL 400 // Maximum interval time between maxima and minima in ms
 
-// Define variables to store last valid minima and maxima values
-double last_minima = 0.0;
-double last_maxima = 0.0;
+// // Define variables to store last valid minima and maxima values
+// double last_minima = 0.0;
+// double last_maxima = 0.0;
 
-// Initialize variables to store the time of the last minima and maxima
-unsigned long last_minima_time = 0;
-unsigned long last_maxima_time = 0;
+// // Initialize variables to store the time of the last minima and maxima
+// unsigned long last_minima_time = 0;
+// unsigned long last_maxima_time = 0;
 
-// nature of the step
-#define STEP_UP 1
-#define STEP_DOWN 0
+// // nature of the step
+// #define STEP_UP 1
+// #define STEP_DOWN 0
 
-#define STEP_LENGTH_CONSTANT 0.331433     // Constant for step length calculation
+#define STEP_LENGTH_CONSTANT 0.84434124     // Constant for step length calculation
 #define STEP_LENGTH_COEFFICIENT 0.0407167 // Coefficient for step length calculation
 
-int step_type = STEP_DOWN; // Initithreshold valuealize step type to down
 
 float previous_step_length = 0.0; // Initialize previous step length to 0
 
@@ -104,25 +103,23 @@ uint32_t timerx;
 // WINDOWED ALGORITHM START HEADER
 
 // Define window size
-const int windowSize = 20;
+const int windowSize = 10;
 
 // Define threshold multiplier (adjust this value as needed)
-const float thresholdMultiplier = 2.5;
-
-// Define minimum distance between peaks (in number of samples)
-const int minPeakDistance = 40;
+const float thresholdMultiplier = 1.5;
 
 // Initialize pitch values and peak detection variables
 float pitchValues[windowSize];
 float baseline = 0;
 float upperThreshold = 0;
 float lowerThreshold = 0;
-int peakIndex = -1;
-int valleyIndex = -1;
-int lastPeakIndex = -1;
-int lastValleyIndex = -1;
-unsigned long lastPeakTime = 0;
-unsigned long lastValleyTime = 0;
+
+float lastPeak = -999;
+float lastValley = -999;
+
+bool isSlope = false;
+bool isStart = true;
+
 // END WINDOWED ALGORITHM END HEADER
 
 void setup()
@@ -176,11 +173,15 @@ void setup()
   timer = micros(); // Initialize the timer
   timerx = micros();
 
-  // get current GPS coordinates
-  readGPS();
-  // assign the new readings as home
-  HOME_LATITUDE = currentLatitude;
-  HOME_LONGITUDE = currentLongitude;
+  // //LOOP UNTIL WE GET HOPE COORDINATES
+  // while(HOME_LATITUDE == currentLatitude)  {
+  //   // get current GPS coordinates
+  //   readGPS();
+  //   // assign the new readings as home
+  //   HOME_LATITUDE = currentLatitude;
+  //   HOME_LONGITUDE = currentLongitude;
+  // }
+
 }
 
 void loop()
@@ -216,41 +217,41 @@ void loop()
   /* Print Data */
 #if 1
 
-  // // Serial.print(kalAngleY); Serial.print(",");
-  // // Serial.print(kalAngleH); Serial.print(",");
-  // // Serial.print(micros());
+  // //GET CONSTANT VALUES,, FOR TESTING
+  
+  // Serial.print(kalAngleH); Serial.print("\t");
+  // Serial.print(kalAngleY); Serial.print("\t");
+  // Serial.print(currentLatitude,20); Serial.print("\t");
+  // Serial.print(currentLongitude,20); Serial.println();
+    
   // readGPS();
+
+  // //END TEST
+  
   if (detectStepWindowed())
   {
-    // previous_step_length = getStepLength();
-    // Serial.println();
-    // Serial.print("Step Length:   ");
-    // Serial.print(previous_step_length);
-    // Serial.print("\t");
-
-    // previous_position = currentPosition();
-    // Serial.println();
-    // Serial.print("Coordinates:  ");
-    // Serial.print(previous_position.x);
-    // Serial.print(" ");
-    // Serial.print(previous_position.y);
-    // Serial.print("\t");
-
+    previous_step_length = getStepLength();
+    previous_position = getCurrentPosition();
+    Serial.println("STEP DETECTED");
+    Serial.print("STEP LENGTH: ");
+    Serial.print(previous_step_length);
+    
     // Check is user is already outside the perimeter
     if (isOutsidePerimeter)
     {
       // TODO: Check the current heading if it the same drift or off
-      if (LOWER_HEADING = < kalAngleH &&kalAngleH = > HIGHER_HEADING)
+      if (LOWER_HEADING <= kalAngleH && kalAngleH >= HIGHER_HEADING)
       {
-        if(((millis() - lastGPSSamplingTime) / 1000) >= currentGPSSamplingRate) {
+        if(((millis() - lastGPSSamplingTime) / 1000) >= currentGPSSamplingInterval) {
+          Serial.println("INFO: Next GPS read reached");
           sampleGPS();
         }
       }
       else
       {
-        // TODO: update the new headings and check if positive directions
-        HIGH_HEADING = (kalAngleH + HEADING_DRIFT) % 360;
-        LOW_HEADING = (kalAngleH - HEADING_DRIFT) % 360;
+        Serial.println("INFO: User made a turn");
+        HIGHER_HEADING = int(kalAngleH + HEADING_DRIFT) % 360;
+        LOWER_HEADING = int(kalAngleH - HEADING_DRIFT) % 360;
 
         sampleGPS();
       }
@@ -260,21 +261,26 @@ void loop()
       // Check distance from origin not to exceed HOME_RADIUS
       if (getDistanceFromOrigin() >= HOME_RADIUS)
       {
-
+        Serial.println("Inertia out of perimeter");
         readGPS(); // Check the GPS on updated position
-        float currentPosition = getCurrentPosition(); // Get the current position
+        float currentPosition = getGPSDistanceFromOrigin(); // Get the current position
 
         // Check if the new position is within the HOME_RADIUS
-        if (currentPosition < HOME_RADIUS)
+        if (currentPosition <= HOME_RADIUS)
         {
+          Serial.println("WARNING: Was a false alarm");
           isOutsidePerimeter = false; // set flag is in perimeter
-          Serial.println("Within HOME_RADIUS");
+          isMovingAway = false;         
           // TODO: reset the postioning coordinates for inertia sensor
         }
         else
         {
+          Serial.println("WARNING: User out of perimeter");   
           isMovingAway = true;
           isOutsidePerimeter = true; // set flag is outside perimeter
+          HIGHER_HEADING = int(kalAngleH + HEADING_DRIFT) % 360;
+          LOWER_HEADING = int (kalAngleH - HEADING_DRIFT) % 360;
+
           // TODO : Send distress signals to concerned people every 1 minute
           if (millis() - previousActiveTransmission > 60000)
           {
@@ -284,13 +290,10 @@ void loop()
         }
         LAST_GPS_DISTANACE = currentPosition;
         
-        Serial.println();
-        Serial.println("Out of range");
       }
       else
       {
         isOutsidePerimeter = false; // set the flag they are in perimeter
-        Serial.println();
         // Serial.println("Within HOME_RADIUS");
 
         // TODO : Check if last idle transmission is more than 30 minutes
@@ -350,15 +353,15 @@ void updatePitchRoll()
 
 float getStepLength()
 {
-  Serial.print(last_maxima);
-  Serial.print("\t");
-  Serial.print(last_minima);
+  // Serial.println("=======================================");
+  // Serial.print("Last Peak: "); Serial.println(lastPeak);
+  // Serial.print("Last Valley: "); Serial.println(lastValley);
   // Calculate the step length based on the pitch angle
-  return (labs(last_maxima - last_minima) * STEP_LENGTH_COEFFICIENT + STEP_LENGTH_CONSTANT);
+  return (labs(lastPeak - lastValley) * STEP_LENGTH_COEFFICIENT + STEP_LENGTH_CONSTANT);
 }
 
 // Function to compute current position  {X, Y}
-Postion currentPosition()
+Postion getCurrentPosition()
 {
   float heading = radians(kalAngleH); // convert to radians for actual values. Try cos(270)
   float x_new = previous_position.x + previous_step_length * cos(heading);
@@ -375,25 +378,30 @@ float getDistanceFromOrigin()
 // get current GPS coordinates latitude and longitude
 void readGPS()
 {
-  digitalWrite(GPS_SWITCH, HIGH); // switch on gps, to get intial readings
-  delay(200);                     // latch for operation
+  if(digitalRead(GPS_SWITCH) == 0) {
+      digitalWrite(GPS_SWITCH, HIGH); // switch on gps, to get intial readings
+      delay(100); // latch for operation
+      Serial.println("GPS started");
 
+  } 
   while (Serial2.available() > 0)
   {
+    // Serial.println(Serial2.read());
     gps.encode(Serial2.read());
-    if (gps.location.isUpdated())
+    if (gps.location.isValid() && gps.location.isUpdated())
     {
-
+      // Serial.println("GPS Connected");     
       currentLatitude = gps.location.lat();
       currentLongitude = gps.location.lng();
       Serial.print("Latitude: ");
-      Serial.print(currentLatitude, 6);
+      Serial.print(currentLatitude, 20);
       Serial.print(" Longitude: ");
-      Serial.println(currentLongitude, 6);
+      Serial.println(currentLongitude, 20);
 
       lastGPSSamplingTime = millis();
 
       digitalWrite(GPS_SWITCH, LOW); // Turn off GPS
+      Serial.println("GPS OFF");
       break;
     }
   }
@@ -406,7 +414,7 @@ float getGPSDistanceFromOrigin()
   float dLon = (currentLongitude - HOME_LONGITUDE) * M_PI / 180;
   float a =
       sin(dLat / 2) * sin(dLat / 2) +
-      cos(lat1 * M_PI / 180) * cos(lat2 * M_PI / 180) *
+      cos(HOME_LATITUDE * M_PI / 180) * cos(currentLatitude * M_PI / 180) *
           sin(dLon / 2) * sin(dLon / 2);
   float c = 2 * atan2(sqrt(a), sqrt(1 - a));
   float d = R * c; // Distance in km
@@ -437,75 +445,46 @@ bool detectStepWindowed()
   for (int i = 0; i < windowSize - 1; i++)
   {
     pitchValues[i] = pitchValues[i + 1];
-  }
+  } 
   pitchValues[windowSize - 1] = pitch;
 
   // Compute baseline and threshold
   baseline = computeBaseline(pitchValues, windowSize);
-  Serial.print("baseline: ");
-  Serial.println(baseline);
   upperThreshold = baseline + thresholdMultiplier * computeStdDev(pitchValues, windowSize);
   lowerThreshold = baseline - thresholdMultiplier * computeStdDev(pitchValues, windowSize);
 
-  Serial.print("upperThreshold: ");
-  Serial.println(upperThreshold);
-  Serial.print("lowerThreshold: ");
-  Serial.println(lowerThreshold);
-
+  bool executePitch = false; //If we qualify it to be a step
+  
   for (int i = 1; i < windowSize - 1; i++)
   {
     // Check for peaks within window
     if (pitchValues[i] > upperThreshold && pitchValues[i] > pitchValues[i - 1] && pitchValues[i] > pitchValues[i + 1])
     {
-      Serial.print("Peak: ");
-      Serial.println(pitchValues[i]);
-      // Peak detected
-      peakIndex = i;
-      break;
-    }
-
-    // Check for valleys within window
-    if (pitchValues[i] < lowerThreshold && pitchValues[i] < pitchValues[i - 1] && pitchValues[i] < pitchValues[i + 1])
+      if(!isSlope || isStart) {
+        executePitch = true;
+        isSlope = true;
+        isStart = false;
+        lastPeak = pitchValues[i];     
+      }
+    }else if (pitchValues[i] < lowerThreshold && pitchValues[i] < pitchValues[i - 1] && pitchValues[i] < pitchValues[i + 1])
     {
-      Serial.print("Valley: ");
-      Serial.println(pitchValues[i]);
-      // Valley detected
-      valleyIndex = i;
-      break;
+          // Check for valleys within window
+
+      if(isSlope || isStart){
+        executePitch = true;
+        isSlope = false;
+        isStart = false;
+        lastValley =  pitchValues[i];       
+      }
+    }
+
+    if (lastPeak != -999 && lastValley != -999 && executePitch) {
+      return true;   
     }
   }
 
-  Serial.println("==============================================================================");
 
-  // Serial.println(pitch);
-
-  // Check for new peak
-  if (peakIndex != -1 && peakIndex != lastPeakIndex)
-  {
-    // Update last peak index
-    lastPeakIndex = peakIndex;
-    lastPeakTime = millis();
-  }
-
-  // Check for new valley
-  if (valleyIndex != -1 && valleyIndex != lastValleyIndex)
-  {
-
-    // Update last valley index
-    lastValleyIndex = valleyIndex;
-    lastValleyTime = millis();
-  }
-
-  // Check for valley and peak if the aleast must be between 110ms - 400ms
-  if (labs(lastValleyTime - lastPeakTime) > 110 && labs(lastValleyTime - lastPeakTime) < 400)
-  {
-    // Serial.println("Step detected");
-    return true;
-  }
-  else
-  {
-    return false;
-  }
+  return false;
 }
 
 // Helper function to compute baseline value
@@ -531,7 +510,12 @@ float computeStdDev(float *values, int numValues)
   }
   float mean = sum / numValues;
   float variance = (sumSquares / numValues) - (mean * mean);
-  return sqrt(variance);
+  float sd = sqrt(variance);
+  if(sd < 1) {
+    return 1.0;
+  }else {
+    return sd;
+  }
 }
 
 
@@ -539,33 +523,35 @@ float computeStdDev(float *values, int numValues)
 void sampleGPS()
 {
 
-        float currentDistance = getGPSDistanceFromOrigin();
         readGPS(); // Check the GPS on updated position
+        float currentDistance = getGPSDistanceFromOrigin();        
         if (currentDistance > LAST_GPS_DISTANACE)
         {
           isMovingAway = true;
-          // decrease the sampling rate since user is moving further away but go below the HIGHEST_GPS_SAMPLING_RATE
+          // decrease the sampling rate since user is moving further away but go below the LOWEST_GPS_SAMPLING_INTERVAL
           decreaseGPSSamplingRate();
         }
         else
         {
           isMovingAway = false;
           // increase the sampling rate since user is coming back, no worries here
-          increaseGPSSamplingRate()
+          increaseGPSSamplingRate();
         }
         LAST_GPS_DISTANACE = currentDistance;
 }
 
 // Function to decrease GPS sampling rate
-void decreaseGPSSamplingRate()
+void increaseGPSSamplingRate()
 {
-  currentGPSSamplingRate = currentGPSSamplingRate / SAMPLING_FACTOR;
-  currentGPSSamplingRate = max(currentGPSSamplingRate, HIGHEST_GPS_SAMPLING_RATE);
+  // Serial.println("INFO: Increasing sampling rate");
+  currentGPSSamplingInterval = currentGPSSamplingInterval / SAMPLING_FACTOR;
+  currentGPSSamplingInterval = max(currentGPSSamplingInterval, LOWEST_GPS_SAMPLING_INTERVAL);
 }
 
 // Function to increase GPS sampling rate
-void increaseGPSSamplingRate()
+void decreaseGPSSamplingRate()
 {
-  currentGPSSamplingRate = currentGPSSamplingRate * SAMPLING_FACTOR;
-  currentGPSSamplingRate = min(currentGPSSamplingRate, LOWEST_GPS_SAMPLING_RATE);
+  // Serial.println("INFO: Decreasing sampling rate");
+  currentGPSSamplingInterval = currentGPSSamplingInterval * SAMPLING_FACTOR;
+  currentGPSSamplingInterval = min(currentGPSSamplingInterval, HIGHEST_GPS_SAMPLING_INTERVAL);
 }
