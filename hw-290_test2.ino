@@ -533,6 +533,9 @@ void sampleGPS()
         }
         else
         {
+          if(currentDistance <= HOME_RADIUS) {
+            isOutsidePerimeter = false;
+          }
           isMovingAway = false;
           // increase the sampling rate since user is coming back, no worries here
           increaseGPSSamplingRate();
